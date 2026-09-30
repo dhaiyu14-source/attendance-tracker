@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance Tracker</title>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=B1VaBnnstQwsmv_GYTKTC0WeU_TIIOng9vpb5I98F-EVLlxmafHcklkhoFj9bQ0dIdgUcIEHxs5n3Togr7HiBjH3IpS-ZsaH36sGNzw1dMPz1r99q6QFDlTdNpbzPr8EjujHUEBmvWah1Y63tglOxu12soVoPsZ0ccZesH9dElhjtfwysfOpoeObPrxXdQeVwX3uWQztoriRkKJ7MdJ22iJsOlR3T68wHEq-5oEWRT0AwM_3WJt0sVieYsNtaB6G-O_u9hgPa3-1LXwpqma2dh5BH-Jca16JKxGnZ-sSfi2_pWghmUkFHgMN7NPaeamn" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f4f6f8;color:#1f2937}
+header{background:#111827;color:white;padding:22px 28px;position:sticky;top:0;z-index:10}
+header h1{margin:0;font-size:24px}.wrap{max-width:1250px;margin:24px auto;padding:0 18px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}.tab{border:0;background:white;padding:11px 16px;border-radius:9px;cursor:pointer;font-weight:600;box-shadow:0 1px 4px #0001}.tab.active{background:#111827;color:#fff}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px}
+.card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px #0000000d}.label{font-size:13px;color:#6b7280}.value{font-size:25px;font-weight:700;margin-top:5px}
+.grid{display:grid;grid-template-columns:1.5fr 1fr;gap:18px}.panel{background:#fff;border-radius:12px;padding:18px;box-shadow:0 2px 8px #0000000d}
+h2{font-size:18px;margin:0 0 14px}.chartbox{height:320px}
+.table-wrap{max-height:650px;overflow:auto;border:1px solid #e5e7eb;border-radius:9px}
+table{width:100%;border-collapse:collapse}th,td{padding:9px 10px;border-bottom:1px solid #eef0f2;text-align:left;font-size:14px}th{background:#f9fafb;position:sticky;top:0;z-index:2}
+.check{width:20px;height:20px;cursor:pointer;accent-color:#111827}.status{font-weight:700}.ok{color:#16803c}.bad{color:#c62828}
+@media(max-width:850px){.grid{grid-template-columns:1fr}.chartbox{height:280px}}
+</style>
+</head>
+<body>
+<header><h1>Attendance Tracker</h1></header>
+<div class="wrap">
+  <div class="tabs" id="tabs"></div>
+  <div class="summary" id="summary"></div>
+  <div class="grid">
+    <section class="panel">
+      <h2 id="sectionTitle"></h2>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Present</th></tr></thead><tbody id="attendanceBody"></tbody></table></div>
+    </section>
+    <section class="panel">
+      <h2>Attendance</h2>
+      <div class="chartbox"><canvas id="attendanceChart"></canvas></div>
+    </section>
+  </div>
+</div>
+<script>
+const subjects={
+  "Pharmacology":[["Theory",.75],["Practical",.80]],
+  "Pathology":[["Theory",.75],["Practical",.80]],
+  "Microbiology":[["Theory",.75],["Practical",.80]],
+  "Clinical Posting":[["Clinical Posting",null]]
+};
+const start=new Date("2026-10-01T00:00:00"), end=new Date("2027-10-01T00:00:00");
+const dates=[]; for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)) dates.push(new Date(d));
+let current="Pharmacology", currentType="Theory", chart;
+
+function key(){return `attendance_${current}_${currentType}`;}
+function getData(){return JSON.parse(localStorage.getItem(key())||"{}");}
+function setData(d){localStorage.setItem(key(),JSON.stringify(d));}
+function currentRows(){return subjects[current];}
+function renderTabs(){
+  const el=document.getElementById("tabs"); el.innerHTML="";
+  Object.keys(subjects).forEach(s=>{
+    const b=document.createElement("button"); b.className="tab"+(s===current?" active":""); b.textContent=s;
+    b.onclick=()=>{current=s;currentType=subjects[s][0][0];render()};
+    el.appendChild(b);
+  });
+  const types=subjects[current];
+  if(types.length>1){
+    types.forEach(([t])=>{const b=document.createElement("button");b.className="tab"+(t===currentType?" active":"");b.textContent=t;b.onclick=()=>{currentType=t;render()};el.appendChild(b)})
+  }
+}
+function renderSummary(){
+  const box=document.getElementById("summary"), data=getData();
+  let present=0; dates.forEach((_,i)=>{if(data[i])present++});
+  const pct=present/dates.length;
+  const req=subjects[current].find(x=>x[0]===currentType)[1];
+  const status=req===null?"":(pct>=req?"Meets":"Below");
+  box.innerHTML=`
+    <div class="card"><div class="label">Subject</div><div class="value">${current}</div></div>
+    <div class="card"><div class="label">Present</div><div class="value">${present}</div></div>
+    <div class="card"><div class="label">Sessions</div><div class="value">${dates.length}</div></div>
+    <div class="card"><div class="label">Attendance</div><div class="value">${(pct*100).toFixed(1)}%</div></div>
+    <div class="card"><div class="label">Required</div><div class="value">${req===null?"—":(req*100)+"%"}</div></div>
+    <div class="card"><div class="label">Status</div><div class="value status ${status==="Meets"?"ok":status==="Below"?"bad":""}">${status||"—"}</div></div>`;
+}
+function renderTable(){
+  const body=document.getElementById("attendanceBody"), data=getData(); body.innerHTML="";
+  dates.forEach((d,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}</td><td><input class="check" type="checkbox" ${data[i]?"checked":""}></td>`;
+    tr.querySelector("input").onchange=e=>{const x=getData();if(e.target.checked)x[i]=true;else delete x[i];setData(x);renderSummary();renderChart()};
+    body.appendChild(tr);
+  });
+}
+function renderChart(){
+  const data=getData();let present=0;dates.forEach((_,i)=>{if(data[i])present++});
+  const absent=dates.length-present;
+  if(chart)chart.destroy();
+  chart=new Chart(document.getElementById("attendanceChart"),{
+    type:"pie",data:{labels:["Present","Absent"],datasets:[{data:[present,absent]}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}}}
+  });
+}
+function render(){
+  renderTabs();document.getElementById("sectionTitle").textContent=`${current} — ${currentType}`;
+  renderSummary();renderTable();renderChart();
+}
+render();
+</script>
+</body>
+</html>
